@@ -80,7 +80,7 @@ def pte_dump(val):
     print("UXN = %d" % get_bit(_bytes, 54))
 
 def is_block(val):
-    if val % 3 == 1:
+    if val & 3 == 1:
         return True
 
     return False
@@ -128,6 +128,7 @@ def get_pte(addr):
     # Compute the PTE virt address
     pte_offset = get_pte_offset(addr)
     pte_addr = phys_to_virt(phys_pte_addr + pte_offset)
+    print("PTE virtual address = 0x%lx" % pte_addr)
     pte = read_qword(pte_addr)
 
     pte_dump(pte)
