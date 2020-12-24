@@ -50,12 +50,15 @@ def find_kern_pgd():
 
     return _text.value + kern_img_size + KERN_PGD_OFFSET
 
-def pte_dump(val):
-    print("--- PTE dump ---")
-    _bytes = val.to_bytes(8, byteorder='little')
-    print("PTE value = 0x%lx" % val)
-    #print(bin(val))
+def software_bits(_bytes):
+    print("-- Software defined PTE bits --")
+    print("VALID = %d" % get_bit(_bytes, 0))
+    print("WRITE/DBM = %d" % get_bit(_bytes, 51))
+    print("DIRTY = %d" % get_bit(_bytes, 55))
+    print("SPECIAL = %d" % get_bit(_bytes, 56))
+    print("PROT_NONE = %d" % get_bit(_bytes, 58))
 
+def hardware_bits(_bytes):
     # -- Lower attributes --
     print("AttrIndx = %d%d%d" % (get_bit(_bytes, 4), get_bit(_bytes, 3),
           get_bit(_bytes, 2)))
@@ -79,6 +82,14 @@ def pte_dump(val):
     print("PXN = %d" % get_bit(_bytes, 53))
     print("UXN = %d" % get_bit(_bytes, 54))
 
+def pte_dump(val):
+    print("--- PTE dump ---")
+    _bytes = val.to_bytes(8, byteorder='little')
+    print("PTE value = 0x%lx" % val)
+
+    hardware_bits(_bytes)
+    software_bits(_bytes)
+   
 def is_block(val):
     if val & 3 == 1:
         return True
@@ -114,9 +125,8 @@ def get_pte(addr):
 
     # Compute the PMD virt address
     pmd_addr = phys_to_virt(phys_pmd_addr)
-    print("PMD virtual address = 0x%lx" % pmd_addr)
-
     pmd_offset = get_pmd_offset(addr)
+    print("PMD virtual address = 0x%lx" % (pmd_addr + pmd_offset))
     phys_pte_addr = read_qword(pmd_addr + pmd_offset)
 
     if is_block(phys_pte_addr):

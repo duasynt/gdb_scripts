@@ -29,3 +29,7 @@ PXN = 1
 UXN = 1
 (gdb) 
 ```
+
+In theory, it's possible to add KASLR support but due to some major differences
+in KASLR implementations between different vendors (e.g., AOSP/MSM and Samsung),
+I've decided not to. And why would you want to debug with KASLR enabled anyway?
