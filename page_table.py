@@ -39,16 +39,28 @@ def get_bit(val, bit):
     shift = int(bit % 8)
     return (val[base] & (1 << shift)) >> shift
 
+def lookup_sym(sym):
+    # Address lookup or value? 
+    try:
+        if sym[0] == '&':
+            _sym_str = gdb.parse_and_eval(sym[1:]).address
+        else:
+            _sym_str = gdb.parse_and_eval(sym)
+    except gdb.error:
+        print("Couldn't resolve symbol: %s" % sym)
+        return None
+
+    return (ctypes.c_ulong(_sym_str)).value
+
 def find_kern_pgd():
     # Assuming _text is loaded with the right KASLR offset
-    _text_s = gdb.parse_and_eval("_text").address
-    _text = ctypes.c_ulong(_text_s)
+    _text = lookup_sym("&_text")
 
     # Read the 3rd qword    
-    kern_img_size = read_qword(_text.value + 16)
+    kern_img_size = read_qword(_text + 16)
     print("Kernel image size = 0x%lx" % kern_img_size)
 
-    return _text.value + kern_img_size + KERN_PGD_OFFSET
+    return _text + kern_img_size + KERN_PGD_OFFSET
 
 def software_bits(_bytes):
     print("-- Software defined PTE bits --")
@@ -106,7 +118,13 @@ def get_pte_offset(addr):
     return ((addr & PTE_MASK) >> PTE_SHIFT) * DESCRIPTOR_SIZE
 
 def get_pte(addr):
-    addr = int(addr, 16)
+    try:
+        addr = int(addr, 16)
+    except ValueError:
+        addr = lookup_sym(addr)
+        if addr == None: 
+            print("Input addr needs to be either in hex or a symbol name")
+            return
 
     kern_pgd = find_kern_pgd()
     print("Kernel PGD = 0x%lx" % kern_pgd)
