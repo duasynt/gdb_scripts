@@ -24,6 +24,44 @@ DESCRIPTOR_SIZE = 8
 # Start of the linear map. TODO: randomised physmap
 PAGE_OFFSET = 0xffffffffffffffff - (1 << (VA_SIZE - 1)) + 1
 
+def get_pid():
+    pid = gdb.selected_thread().ptid[1]
+    return pid
+
+def offsetof(_type, member):
+    return (gdb.Value(0).cast(_type)[member]).address
+
+def container_of(ptr, _type, member):
+    ulong = gdb.lookup_type("unsigned long")
+
+    top = ptr.cast(ulong) - offsetof(_type, member).cast(ulong)
+    return top.cast(_type)
+
+def find_by_pid(pid):
+    task_struct_ptr = gdb.lookup_type("struct task_struct").pointer()
+    
+    init_task_s = gdb.parse_and_eval("init_task").address
+    init_task = init_task_s.cast(task_struct_ptr)
+
+    curr_task = container_of(init_task['tasks']['next'], task_struct_ptr, 'tasks')
+
+    while curr_task != init_task:
+        if curr_task['pid'] == pid:
+            break
+
+        curr_task = container_of(curr_task['tasks']['next'], task_struct_ptr, 'tasks')
+
+    if curr_task == init_task:
+        print('Failed to find the backing task_struct')
+        return None
+
+    return curr_task
+
+def get_current():
+    pid = get_pid()
+    curr_task = find_by_pid(pid)
+    print(curr_task['cpu'])
+    
 def read_qword(addr):
     m = gdb.selected_inferior().read_memory(addr, 8);
     return int.from_bytes(m.tobytes(), byteorder='little')
