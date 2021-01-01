@@ -20,6 +20,8 @@ PMD_SHIFT = 21
 PTE_MASK = 0x1ff000
 PTE_SHIFT = 12
 DESCRIPTOR_SIZE = 8
+VA_BITS = 39
+TASK_SIZE = (1 << 39) - 1
 
 # Start of the linear map. TODO: randomised physmap
 PAGE_OFFSET = 0xffffffffffffffff - (1 << (VA_SIZE - 1)) + 1
@@ -60,7 +62,12 @@ def find_by_pid(pid):
 def get_current():
     pid = get_pid()
     curr_task = find_by_pid(pid)
-    print(curr_task['cpu'])
+    return curr_task
+
+def get_current_pgd():
+    ulong = gdb.lookup_type("unsigned long")
+    curr_task = get_current()
+    return ctypes.c_ulong(curr_task['mm']['pgd']).value
     
 def read_qword(addr):
     m = gdb.selected_inferior().read_memory(addr, 8);
@@ -164,15 +171,24 @@ def get_pte(addr):
             print("Input addr needs to be either in hex or a symbol name")
             return
 
-    kern_pgd = find_kern_pgd()
-    print("Kernel PGD = 0x%lx" % kern_pgd)
+    if addr > TASK_SIZE:
+        # kernel PGD
+        pgd = find_kern_pgd()
+        print("Kernel PGD = 0x%lx" % pgd)
+    else:
+        pgd = get_current_pgd()
+        print("Backing process PGD = 0x%lx" % pgd)
 
     pgd_offset = get_pgd_offset(addr)
     print("PGD offset = %lx" % pgd_offset)
-    phys_pmd_addr = read_qword(kern_pgd + pgd_offset) 
+    phys_pmd_addr = read_qword(pgd + pgd_offset) 
 
     if is_block(phys_pmd_addr):
         pte_dump(phys_pmd_addr)
+        return
+
+    if phys_pmd_addr == 0:
+        print("0x%lx is not mapped in VA space of the backing process" % addr)
         return
 
     # Clear the least-significant 12 bits, i.e. page size
